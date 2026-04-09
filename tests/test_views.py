@@ -1,9 +1,7 @@
-import json
-
-from django.test import RequestFactory
+from django.test import Client
+from django.urls import reverse
 
 from myapp.models import Item
-from myapp.views import list_items
 
 
 class TestListItems:
@@ -14,20 +12,18 @@ class TestListItems:
         Item.objects.create(name="Visible", is_active=True)
         Item.objects.create(name="Hidden", is_active=False)
 
-        factory = RequestFactory()
-        request = factory.get("/items/")
-        response = list_items(request)
+        client = Client()
+        response = client.get(reverse("list_items"))
 
         assert response.status_code == 200
-        data = json.loads(response.content)
+        data = response.json()
         assert len(data["items"]) == 1
         assert data["items"][0]["name"] == "Visible"
 
     def test_empty_list(self) -> None:
         """Returns empty list when no items exist."""
-        factory = RequestFactory()
-        request = factory.get("/items/")
-        response = list_items(request)
+        client = Client()
+        response = client.get(reverse("list_items"))
 
         assert response.status_code == 200
-        assert json.loads(response.content) == {"items": []}
+        assert response.json() == {"items": []}
