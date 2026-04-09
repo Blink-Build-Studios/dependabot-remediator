@@ -1,3 +1,5 @@
+import json
+
 from django.test import RequestFactory
 
 from myapp.models import Item
@@ -17,7 +19,7 @@ class TestListItems:
         response = list_items(request)
 
         assert response.status_code == 200
-        data = response.json()
+        data = json.loads(response.content)
         assert len(data["items"]) == 1
         assert data["items"][0]["name"] == "Visible"
 
@@ -28,4 +30,4 @@ class TestListItems:
         response = list_items(request)
 
         assert response.status_code == 200
-        assert response.json() == {"items": []}
+        assert json.loads(response.content) == {"items": []}
