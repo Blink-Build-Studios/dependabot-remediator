@@ -84,16 +84,9 @@ go mod tidy
 bundle update package-name
 ```
 
-### 4. Check for breaking changes
+### 4. Run tests and fix everything until they pass
 
-After upgrading:
-1. Read the package's CHANGELOG or release notes for breaking changes
-2. Update code if necessary to handle API changes
-3. If a major version bump is required and introduces breaking changes, document this in the PR
-
-### 5. Run tests
-
-Run whatever test commands exist in the project:
+After upgrading, run the project's test suite and linting:
 
 ```bash
 # Check Makefile for targets
@@ -107,9 +100,18 @@ cargo test 2>/dev/null || true
 go test ./... 2>/dev/null || true
 ```
 
-Fix any test failures or lint errors before proceeding.
+**If tests or linting fail, you must fix the failures.** This is the core of the job — not just upgrading versions, but making the codebase work with the new versions. Common scenarios:
 
-### 6. Create PR
+- **Deprecated API removed in new version**: Read the package's CHANGELOG or migration guide, then update every call site in the codebase to use the new API.
+- **Function signature changed**: Find all callers and update their arguments.
+- **Import paths changed**: Update all import statements across the codebase.
+- **Type changes**: Fix any type errors introduced by the upgrade.
+- **New lint rules triggered by upgraded linter**: Fix the lint violations.
+- **Major version bump required**: Do the major version bump, read the migration guide, and update all affected code.
+
+**Keep iterating** — upgrade, run tests, fix failures, run tests again — until the full test suite and linting pass cleanly. Do not proceed to creating a PR until everything is green.
+
+### 5. Create PR
 
 ```bash
 git checkout -b claude/dependabot-remediation
@@ -147,7 +149,7 @@ This PR addresses all open Dependabot security alerts.
 Dependabot alerts will auto-close when this PR is merged."
 ```
 
-### 7. Monitor CI
+### 6. Monitor CI
 
 After creating the PR:
 1. Watch CI: `gh pr checks --watch`
