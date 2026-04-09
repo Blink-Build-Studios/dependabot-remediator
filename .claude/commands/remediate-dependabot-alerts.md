@@ -5,7 +5,7 @@ Review and fix all open Dependabot security alerts by upgrading vulnerable depen
 ## Objective
 
 Fix all open Dependabot security alerts in this repository. The task is not complete until:
-1. All security alerts are addressed
+1. All fixable security alerts are addressed
 2. Tests pass
 3. Linting passes
 4. A PR is created and CI is green
@@ -22,13 +22,17 @@ ls -la pyproject.toml setup.py setup.cfg requirements*.txt package.json pnpm-loc
 
 # Is there a Makefile with test/lint targets?
 cat Makefile 2>/dev/null | head -50
+
+# Read CLAUDE.md for project-specific instructions
+cat CLAUDE.md 2>/dev/null
 ```
 
 ### 2. Query Dependabot alerts
 
 ```bash
-gh api repos/{owner}/{repo}/dependabot/alerts?state=open \
-  --jq '.[] | {number, summary: .security_advisory.summary, package: .dependency.package.name, severity: .security_advisory.severity, manifest: .dependency.manifest_path}'
+REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+gh api "repos/${REPO}/dependabot/alerts?state=open&per_page=100" \
+  --jq '.[] | {number, summary: .security_advisory.summary, package: .dependency.package.name, severity: .security_advisory.severity, manifest: .dependency.manifest_path, patched_versions: .security_vulnerability.first_patched_version.identifier}'
 ```
 
 Review each alert to understand:
@@ -36,6 +40,7 @@ Review each alert to understand:
 - What the vulnerability is
 - Which manifest file contains it
 - Severity level
+- **Whether a patched version exists** (`patched_versions` will be null if no fix is available yet)
 
 ### 3. Upgrade dependencies
 
@@ -84,6 +89,14 @@ go mod tidy
 bundle update package-name
 ```
 
+#### Alerts with no patched version available
+
+Some alerts have no fix available yet — the upstream maintainer hasn't released a patched version. For these:
+
+1. **Check if an alternative package exists** that provides the same functionality without the vulnerability. If so, migrate to it.
+2. **If no alternative exists**, skip the alert and document it in the PR body under a "Unfixable Alerts" section, explaining that no patched version is available.
+3. **Never downgrade or remove a dependency** just to close an alert — that will break the application.
+
 ### 4. Run tests and fix everything until they pass
 
 After upgrading, run the project's test suite and linting:
@@ -113,6 +126,14 @@ go test ./... 2>/dev/null || true
 
 ### 5. Create PR
 
+First, clean up any stale remote branch from a previous run:
+
+```bash
+git push origin --delete claude/dependabot-remediation 2>/dev/null || true
+```
+
+Then create the branch and PR:
+
 ```bash
 git checkout -b claude/dependabot-remediation
 git add .
@@ -138,6 +159,10 @@ This PR addresses all open Dependabot security alerts.
 - **[Package]**: X.Y.Z → A.B.C — [CVE or description] (Severity: High/Medium/Low)
 [repeat for each]
 
+## Unfixable Alerts
+
+[List any alerts where no patched version is available, or remove this section if all were fixed]
+
 ## Testing
 
 - Tests passing
@@ -146,7 +171,12 @@ This PR addresses all open Dependabot security alerts.
 
 ## Verification
 
-Dependabot alerts will auto-close when this PR is merged."
+Dependabot alerts will auto-close when this PR is merged.
+
+## Review
+
+This PR was generated automatically. Please review the dependency changes and
+test results before merging. Pay particular attention to any major version bumps."
 ```
 
 ### 6. Monitor CI
@@ -163,3 +193,4 @@ After creating the PR:
 - **Check all manifest files** — don't miss transitive or dev dependencies
 - **One PR for all fixes** — consolidate into a single remediation PR
 - **CI must pass** — incomplete if CI is failing
+- **Document unfixable alerts** — if no patched version exists, say so in the PR

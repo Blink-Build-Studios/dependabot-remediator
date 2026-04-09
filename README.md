@@ -19,7 +19,7 @@ Claude opens a PR with all fixes
          ↓
 CI runs on the PR (tests + linting)
          ↓
-Human reviews and merges
+Human reviews and merges (always review before merging!)
 ```
 
 The key insight: **Claude Code doesn't need to know your tech stack ahead of time.** The remediation command discovers what package managers you use, reads the Dependabot alerts, and figures out how to fix them. This works for Python, JavaScript, Rust, Go, Ruby — any ecosystem Dependabot supports.
@@ -242,6 +242,17 @@ This sample uses a Django/Python project, but the pattern works for any tech sta
 - The default `GITHUB_TOKEN` can create PRs but those PRs won't trigger `on: pull_request` workflows
 - Solution: Use a GitHub App or Personal Access Token for authentication instead
 - See the [GitHub docs on triggering workflows from other workflows](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow)
+
+## Review Expectations
+
+This automation opens PRs — it does **not** merge them. A human should always review before merging. Pay attention to:
+
+- **Major version bumps** — These are most likely to introduce breaking changes. Even if tests pass, skim the changelog for behavioral changes that tests might not cover.
+- **Transitive dependency changes** — Lock file diffs can be large. Focus on the direct dependency changes and spot-check that transitive updates look reasonable.
+- **Code changes beyond version bumps** — If Claude had to update call sites, import paths, or API usage to fix breaking changes, review those changes carefully.
+- **Unfixable alerts** — If the PR documents alerts with no patched version available, verify that's accurate and consider whether the vulnerability is exploitable in your context.
+
+The automation is only as trustworthy as your test suite. If your tests are thin, treat the PR with more scrutiny.
 
 ## Advanced: GitHub App Authentication
 
