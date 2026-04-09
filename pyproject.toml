@@ -1,0 +1,33 @@
+[project]
+name = "sample-dependabot-automation"
+version = "0.1.0"
+description = "Sample project demonstrating automated Dependabot remediation with Claude Code"
+requires-python = ">=3.12"
+dependencies = [
+    # Intentionally pinned to older versions so Dependabot has alerts to flag.
+    # In a real project these would be your actual dependencies.
+    "django>=4.2,<4.2.12",
+    "psycopg2-binary>=2.9,<2.9.10",
+    "requests>=2.31,<2.32",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.8",
+    "ruff>=0.4",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "myapp.settings"
+pythonpath = ["."]
+markers = [
+    "django_db: mark test to use the database",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]

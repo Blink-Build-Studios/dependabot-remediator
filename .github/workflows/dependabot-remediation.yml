@@ -1,0 +1,166 @@
+name: Dependabot Remediation
+
+# Automatically remediate open Dependabot security alerts using Claude Code.
+#
+# Runs daily (and on manual dispatch). Checks for open alerts, skips if a
+# remediation PR already exists, then spawns a Claude Code worker to upgrade
+# vulnerable dependencies, run tests, and open a PR.
+#
+# Prerequisites:
+#   1. Dependabot alerts enabled on this repository
+#   2. A CI workflow that runs tests and linting on PRs (see ci.yml)
+#   3. Repository secrets configured (see README)
+#
+# Required secrets:
+#   CLAUDE_CODE_OAUTH_TOKEN - from `claude setup-token` (Claude Max/Pro subscription)
+#
+# Optional variables:
+#   AUTONOMOUS_WORKFLOW_ENABLED - set to "false" to disable (defaults to enabled)
+
+on:
+  schedule:
+    - cron: '0 4 * * *'   # Daily at 4 AM UTC
+  workflow_dispatch:       # Manual trigger
+
+concurrency:
+  group: dependabot-remediation
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Preflight Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_proceed: ${{ steps.decision.outputs.should_proceed }}
+      alert_count: ${{ steps.check_alerts.outputs.alert_count }}
+
+    steps:
+      - name: Check kill switch
+        id: check_kill_switch
+        run: |
+          ENABLED="${{ vars.AUTONOMOUS_WORKFLOW_ENABLED }}"
+          if [ "$ENABLED" = "false" ]; then
+            echo "Dependabot remediation is disabled via AUTONOMOUS_WORKFLOW_ENABLED"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for open Dependabot alerts
+        id: check_alerts
+        if: steps.check_kill_switch.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ALERT_COUNT=$(gh api \
+            "repos/${{ github.repository }}/dependabot/alerts?state=open&per_page=100" \
+            --jq 'length')
+
+          echo "Open Dependabot alerts: ${ALERT_COUNT}"
+          echo "alert_count=${ALERT_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Check for existing remediation PR
+        id: check_existing_pr
+        if: steps.check_kill_switch.outputs.enabled == 'true' && steps.check_alerts.outputs.alert_count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          EXISTING_PR=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --head "claude/dependabot-remediation" \
+            --state open \
+            --json url \
+            -q '.[0].url' \
+            2>/dev/null || echo "")
+
+          if [ -n "${EXISTING_PR}" ]; then
+            echo "Existing remediation PR found: ${EXISTING_PR} — skipping"
+            echo "has_existing_pr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No existing remediation PR — proceeding"
+            echo "has_existing_pr=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decide whether to proceed
+        id: decision
+        run: |
+          ENABLED="${{ steps.check_kill_switch.outputs.enabled }}"
+          ALERT_COUNT="${{ steps.check_alerts.outputs.alert_count }}"
+          HAS_EXISTING_PR="${{ steps.check_existing_pr.outputs.has_existing_pr }}"
+
+          if [ "$ENABLED" != "true" ]; then
+            echo "should_proceed=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$ALERT_COUNT" ] || [ "$ALERT_COUNT" = "0" ]; then
+            echo "should_proceed=false" >> "$GITHUB_OUTPUT"
+          elif [ "$HAS_EXISTING_PR" = "true" ]; then
+            echo "should_proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  remediate:
+    name: Remediate Dependabot Alerts
+    needs: preflight
+    if: needs.preflight.outputs.should_proceed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      security-events: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start infrastructure services
+        run: |
+          docker compose -f docker/docker-compose.yml up -d
+          echo "Waiting for services to be ready..."
+          sleep 10
+
+      - name: Build Claude worker image
+        run: docker build -t claude-worker:latest -f docker/claude-worker/Dockerfile docker/claude-worker/
+
+      - name: Run Claude worker
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          COMMAND: '/remediate-dependabot-alerts'
+          GIT_USER_NAME: "claude-bot"
+          GIT_USER_EMAIL: "claude-bot@users.noreply.github.com"
+        run: |
+          docker run --rm \
+            --add-host=host.docker.internal:host-gateway \
+            -e CLAUDE_CODE_OAUTH_TOKEN \
+            -e GITHUB_TOKEN \
+            -e COMMAND \
+            -e GIT_USER_NAME \
+            -e GIT_USER_EMAIL \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            claude-worker:latest
+
+      - name: Label remediation PR
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_URL=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --head "claude/dependabot-remediation" \
+            --json url \
+            -q '.[0].url' \
+            2>/dev/null || echo "")
+
+          if [ -n "$PR_URL" ]; then
+            PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+            gh pr edit "$PR_NUMBER" --add-label "automated" 2>/dev/null || true
+            echo "Labeled PR #${PR_NUMBER}"
+          fi
+
+      - name: Teardown infrastructure
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down
