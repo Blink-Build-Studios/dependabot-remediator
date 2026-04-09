@@ -31,6 +31,9 @@ jobs:
     name: Preflight Checks
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      security-events: read
+      pull-requests: read
     outputs:
       should_proceed: ${{ steps.decision.outputs.should_proceed }}
       alert_count: ${{ steps.check_alerts.outputs.alert_count }}
