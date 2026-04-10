@@ -76,8 +76,18 @@ git config --global user.name "$GIT_USER_NAME"
 git config --global user.email "$GIT_USER_EMAIL"
 git config --global --add safe.directory /workspace
 
-# Authenticate gh CLI
+# Clear any stale credential config from actions/checkout
+if [ -f /workspace/.git/config ]; then
+    git config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
+fi
+
+# Use gh as git credential helper so git push works with stored token
+git config --global credential.helper '!gh auth git-credential'
+
+# Authenticate gh CLI — store credentials, then unset the env var so gh
+# uses the stored token instead of the env var (avoids auth conflicts)
 echo "$GITHUB_TOKEN" | gh auth login --with-token
+unset GITHUB_TOKEN
 log "GitHub CLI authenticated"
 
 # Wait for database
