@@ -15,9 +15,7 @@ def create_http_client(
         total=retries,
         backoff_factor=backoff_factor,
         status_forcelist=[429, 500, 502, 503, 504],
-        # method_whitelist was renamed to allowed_methods in urllib3 2.x.
-        # This will break when urllib3 is upgraded past 2.0.
-        method_whitelist=["GET", "POST"],
+        allowed_methods=["GET", "POST"],
     )
     return urllib3.PoolManager(retries=retry_strategy)
 
