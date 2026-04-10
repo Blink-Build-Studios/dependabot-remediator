@@ -104,9 +104,11 @@ export POSTGRES_USER="${POSTGRES_USER:-postgres}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
 export POSTGRES_DB="${POSTGRES_DB:-sample_app}"
 
-# Install dependencies
+# Install dependencies in a virtual environment
 log "Installing dependencies..."
 cd /workspace
+python3 -m venv .venv
+. .venv/bin/activate
 pip install -e ".[dev]" --quiet
 
 # Run migrations
