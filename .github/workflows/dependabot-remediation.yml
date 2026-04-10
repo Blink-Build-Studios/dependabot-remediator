@@ -13,9 +13,15 @@ name: Dependabot Remediation
 #
 # Required secrets:
 #   CLAUDE_CODE_OAUTH_TOKEN - from `claude setup-token` (Claude Max/Pro subscription)
+#   GH_PAT                 - GitHub PAT with security_events scope (for Dependabot alerts API)
 #
 # Optional variables:
 #   AUTONOMOUS_WORKFLOW_ENABLED - set to "false" to disable (defaults to enabled)
+#
+# Why GH_PAT? The default GITHUB_TOKEN cannot access the Dependabot alerts API.
+# GitHub does not expose a `vulnerability-alerts` permission for GITHUB_TOKEN.
+# You need either a Personal Access Token (classic with `security_events` scope,
+# or fine-grained with "Dependabot alerts" read permission) or a GitHub App token.
 
 on:
   schedule:
@@ -31,9 +37,6 @@ jobs:
     name: Preflight Checks
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions:
-      security-events: read
-      pull-requests: read
     outputs:
       should_proceed: ${{ steps.decision.outputs.should_proceed }}
       alert_count: ${{ steps.check_alerts.outputs.alert_count }}
@@ -54,7 +57,7 @@ jobs:
         id: check_alerts
         if: steps.check_kill_switch.outputs.enabled == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           ALERT_COUNT=$(gh api \
             "repos/${{ github.repository }}/dependabot/alerts?state=open&per_page=100" \
@@ -67,7 +70,7 @@ jobs:
         id: check_existing_pr
         if: steps.check_kill_switch.outputs.enabled == 'true' && steps.check_alerts.outputs.alert_count != '0'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           EXISTING_PR=$(gh pr list \
             --repo "${{ github.repository }}" \
@@ -112,7 +115,6 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
-      security-events: read
 
     steps:
       - name: Checkout repository
@@ -130,7 +132,7 @@ jobs:
       - name: Run Claude worker
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           COMMAND: '/remediate-dependabot-alerts'
           GIT_USER_NAME: "claude-bot"
           GIT_USER_EMAIL: "claude-bot@users.noreply.github.com"
@@ -149,7 +151,7 @@ jobs:
       - name: Label remediation PR
         if: success()
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           PR_URL=$(gh pr list \
             --repo "${{ github.repository }}" \

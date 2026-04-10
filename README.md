@@ -62,15 +62,30 @@ claude setup-token
 
 This outputs an OAuth token. Save it — you'll add it as a repository secret.
 
-### Step 2: Add Repository Secrets
+### Step 2: Create a GitHub Personal Access Token
+
+The Dependabot alerts API is **not accessible** via the default `GITHUB_TOKEN` — GitHub does not expose a `vulnerability-alerts` permission for it. You need a separate token.
+
+Create a **fine-grained Personal Access Token** at [github.com/settings/tokens](https://github.com/settings/tokens?type=beta):
+- **Repository access**: Select your repository
+- **Permissions**:
+  - **Dependabot alerts**: Read
+  - **Contents**: Read and write (to push branches)
+  - **Pull requests**: Read and write (to create PRs)
+  - **Metadata**: Read (automatically included)
+
+Alternatively, a **classic PAT** with `repo` and `security_events` scopes will work.
+
+### Step 3: Add Repository Secrets
 
 Go to your repository → Settings → Secrets and variables → Actions → New repository secret:
 
 | Secret | Value |
 |--------|-------|
 | `CLAUDE_CODE_OAUTH_TOKEN` | The token from `claude setup-token` |
+| `GH_PAT` | The GitHub PAT from Step 2 |
 
-### Step 3: Enable Dependabot Alerts
+### Step 4: Enable Dependabot Alerts
 
 Go to your repository → Settings → Code security → Enable "Dependabot alerts".
 
@@ -88,7 +103,7 @@ updates:
 
 Setting `open-pull-requests-limit: 0` prevents Dependabot from opening its own PRs — Claude Code handles remediation instead, consolidating all fixes into a single PR.
 
-### Step 4: Copy the Workflow Files
+### Step 5: Copy the Workflow Files
 
 Copy these files into your repository:
 
@@ -97,7 +112,7 @@ Copy these files into your repository:
 .claude/commands/remediate-dependabot-alerts.md ← Instructions for Claude Code
 ```
 
-### Step 5: Copy and Adapt the Docker Worker
+### Step 6: Copy and Adapt the Docker Worker
 
 Copy the `docker/claude-worker/` directory. You'll need to adapt the Dockerfile and entrypoint to your stack:
 
@@ -116,7 +131,7 @@ pip install -e ".[dev]"           # or: npm install, cargo build, etc.
 python manage.py migrate          # or: whatever setup your tests need
 ```
 
-### Step 6: Adapt the Workflow
+### Step 7: Adapt the Workflow
 
 Edit `.github/workflows/dependabot-remediation.yml`:
 
@@ -124,7 +139,7 @@ Edit `.github/workflows/dependabot-remediation.yml`:
 2. **Timeout**: Adjust `timeout-minutes` based on how long your test suite takes
 3. **Runner**: Change `runs-on` if you need a self-hosted runner (e.g., for GPU, ARM, or large memory)
 
-### Step 7: Test It
+### Step 8: Test It
 
 Trigger the workflow manually to verify everything works:
 
