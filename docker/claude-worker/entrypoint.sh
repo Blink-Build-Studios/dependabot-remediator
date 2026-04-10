@@ -85,13 +85,15 @@ if [ -f /workspace/.git/config ]; then
     git config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
 fi
 
-# Use gh as git credential helper so git push works with stored token
-git config --global credential.helper '!gh auth git-credential'
+# Use a simple credential helper that passes the token for git push
+git config --global credential.https://github.com.helper '!f() { echo "username=x-access-token"; echo "password=${GH_TOKEN}"; }; f'
 
-# Authenticate gh CLI using the saved token
-echo "$GH_TOKEN_VALUE" | gh auth login --with-token
+# Authenticate gh CLI using the saved token.
+# Use --skip-ssh-key to avoid interactive prompts. The GH_TOKEN env var
+# approach is simpler than gh auth login for CI — just export it for gh.
+export GH_TOKEN="$GH_TOKEN_VALUE"
 unset GH_TOKEN_VALUE
-log "GitHub CLI authenticated"
+log "GitHub CLI authenticated via GH_TOKEN"
 
 # Wait for database
 wait_for_postgres
