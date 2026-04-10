@@ -26,7 +26,11 @@ if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
 fi
 
 export CLAUDE_CODE_OAUTH_TOKEN
-export GITHUB_TOKEN
+
+# Save the GitHub token and unset the env var immediately.
+# gh CLI refuses to store credentials when GITHUB_TOKEN is in the environment.
+GH_TOKEN_VALUE="$GITHUB_TOKEN"
+unset GITHUB_TOKEN
 
 COMMAND="${COMMAND:-/remediate-dependabot-alerts}"
 GIT_USER_NAME="${GIT_USER_NAME:-claude-bot}"
@@ -84,10 +88,9 @@ fi
 # Use gh as git credential helper so git push works with stored token
 git config --global credential.helper '!gh auth git-credential'
 
-# Authenticate gh CLI — store credentials, then unset the env var so gh
-# uses the stored token instead of the env var (avoids auth conflicts)
-echo "$GITHUB_TOKEN" | gh auth login --with-token
-unset GITHUB_TOKEN
+# Authenticate gh CLI using the saved token
+echo "$GH_TOKEN_VALUE" | gh auth login --with-token
+unset GH_TOKEN_VALUE
 log "GitHub CLI authenticated"
 
 # Wait for database
