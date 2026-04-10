@@ -24,6 +24,10 @@ Human reviews and merges (always review before merging!)
 
 The key insight: **Claude Code doesn't need to know your tech stack ahead of time.** The remediation command discovers what package managers you use, reads the Dependabot alerts, and figures out how to fix them. This works for Python, JavaScript, Rust, Go, Ruby — any ecosystem Dependabot supports.
 
+## Example PR
+
+See [PR #1](https://github.com/Blink-Build-Studios/dependabot-remediator/pull/1) for a real example of what the automation produces. Claude Code upgraded vulnerable dependencies, updated code that used a deprecated API (`urllib3`'s `method_whitelist` → `allowed_methods`), fixed the tests, and opened a PR — all without human intervention.
+
 ## Prerequisites
 
 Before this automation can work, you need two things in place:
