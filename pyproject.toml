@@ -4,15 +4,13 @@ version = "0.1.0"
 description = "Sample project demonstrating automated Dependabot remediation with Claude Code"
 requires-python = ">=3.12"
 dependencies = [
-    # Intentionally pinned to older, vulnerable versions so Dependabot has alerts to flag.
-    # In a real project these would be your actual dependencies at current versions.
-    "django==4.2.7",
+    "django==4.2.30",
     "psycopg2-binary==2.9.6",
-    "requests==2.31.0",
-    "urllib3==1.26.5",
-    "certifi==2023.7.22",
-    "jinja2==3.1.2",
-    "pillow==10.0.0",
+    "requests==2.33.1",
+    "urllib3==2.6.3",
+    "certifi==2026.2.25",
+    "jinja2==3.1.6",
+    "pillow==10.3.0",
 ]
 
 [project.optional-dependencies]
